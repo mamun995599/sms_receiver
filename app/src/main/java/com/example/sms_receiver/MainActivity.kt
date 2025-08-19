@@ -2,9 +2,11 @@ package com.example.sms_receiver
 
 import android.Manifest
 import android.content.Intent
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.text.format.Formatter
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -13,6 +15,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchServer: Switch
     private lateinit var portInput: EditText
     private lateinit var statusText: TextView
+    private lateinit var restartButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -21,6 +24,7 @@ class MainActivity : AppCompatActivity() {
         switchServer = findViewById(R.id.switchServer)
         portInput = findViewById(R.id.editPort)
         statusText = findViewById(R.id.textStatus)
+        restartButton = findViewById(R.id.restartButton)
 
         // Set default port
         portInput.setText("8060")
@@ -72,6 +76,27 @@ class MainActivity : AppCompatActivity() {
                 statusText.setTextColor(getColor(android.R.color.holo_red_dark))
             }
         }
+
+        restartButton.setOnClickListener {
+            // Stop and restart the service
+            stopService(Intent(this, WebSocketService::class.java))
+            Thread.sleep(1000) // Wait for service to stop
+
+            val port = portInput.text.toString().toIntOrNull() ?: 8060
+            val intent = Intent(this, WebSocketService::class.java)
+            intent.putExtra("port", port)
+            startService(intent)
+
+            Toast.makeText(this, "Service restarted", Toast.LENGTH_SHORT).show()
+
+            // Update status
+            val ip = getLocalIpAddress()
+            statusText.text = "✅ ws://$ip:$port"
+            statusText.setTextColor(getColor(android.R.color.holo_green_dark))
+        }
+
+        // Check battery optimization
+        checkBatteryOptimization()
     }
 
     private fun getLocalIpAddress(): String {
@@ -80,6 +105,19 @@ class MainActivity : AppCompatActivity() {
             Formatter.formatIpAddress(wm.connectionInfo.ipAddress)
         } catch (e: Exception) {
             "127.0.0.1"
+        }
+    }
+
+    private fun checkBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(POWER_SERVICE) as android.os.PowerManager
+            val packageName = packageName
+            if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                val intent = Intent()
+                intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                intent.data = Uri.parse("package:$packageName")
+                startActivity(intent)
+            }
         }
     }
 
